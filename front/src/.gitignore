@@ -1,0 +1,17 @@
+# Dependencias
+node_modules/
+front/node_modules/
+
+# Builds
+front/build/
+ProMovil/.expo/
+ProMovil/dist/
+
+# Archivos de entorno
+.env
+.env.local
+
+# Logs y temporales
+*.log
+.DS_Store
+Thumbs.db
