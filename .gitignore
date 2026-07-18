@@ -1,0 +1,27 @@
+# Dependencias
+front/node_modules/
+back/node_modules/
+
+# Variables de entorno
+front/.env
+back/.env
+
+# Builds
+front/build/
+front/dist/
+back/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Cobertura
+coverage/
