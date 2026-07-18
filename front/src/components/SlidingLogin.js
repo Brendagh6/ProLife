@@ -9,7 +9,7 @@ function SlidingLogin({ onLogin }) {
     const [regNombre, setRegNombre] = useState('');
     const [regEmail, setRegEmail] = useState('');
     const [regPassword, setRegPassword] = useState('');
-    const [regConfirmPassword, setRegConfirmPassword] = useState(''); // ← NUEVO
+    const [regConfirmPassword, setRegConfirmPassword] = useState(''); 
     const [regError, setRegError] = useState('');
     const [regSuccess, setRegSuccess] = useState('');
     
@@ -52,7 +52,8 @@ function SlidingLogin({ onLogin }) {
             return;
         }
 
-        if (regPassword !== regConfirmPassword) {  // ← VALIDACIÓN NUEVA
+        if (regPassword !== regConfirmPassword) {  
+    
             setRegError('Las contraseñas no coinciden');
             setLoading(false);
             return;

@@ -12,7 +12,10 @@ from datetime import datetime, timedelta
 import bcrypt
 from groq import Groq
 groq_client = Groq(api_key="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")
-
+# MONGODB ATLAS
+# ============================================================
+MONGO_URI = "mongodb+srv://prolife_admin:s4q37OT3oYhGOSlf@prolife.6yw9rnd.mongodb.net/?retryWrites=true&w=majority&appName=Prolife"
+MONGO_DB = "prolife_db"
 # ======================  IMPORTS ML ======================
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -29,16 +32,20 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     f1_score,
-)
+)# === Agregar después de los imports de sklearn ===
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+import io
+import base64
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 # ============================================================
-# MONGODB ATLAS
-# ============================================================
-MONGO_URI = "mongodb+srv://prolife_admin:s4q37OT3oYhGOSlf@prolife.6yw9rnd.mongodb.net/?retryWrites=true&w=majority&appName=Prolife"
-MONGO_DB = "prolife_db"
+
 
 client = MongoClient(MONGO_URI, server_api=ServerApi("1"))
 try:
@@ -660,7 +667,121 @@ def recomendaciones_ia(id_usuario):
         })
     except Exception as e:
         return jsonify({"recomendaciones": []}), 500
+    # ============================================================
+# ANÁLISIS NO SUPERVISADO PARA SUPERADMIN (K-Means, Elbow, Silhouette, PCA)
+# ============================================================
+# ============================================================
+# ANÁLISIS NO SUPERVISADO PARA SUPERADMIN (K-Means, Elbow, Silhouette, PCA)
+# ============================================================
 
+@app.route("/superadmin/analisis_unsupervised", methods=["GET"])
+def analisis_unsupervised():
+    """
+    Endpoint exclusivo para SuperAdmin: K-Means + Método del Codo + Silhouette + PCA
+    """
+    try:
+        # Obtener todos los logs de fatiga
+        logs = list(logs_energia_col.find({}, {"_id": 0}))
+        if len(logs) < 10:
+            return jsonify({"error": "No hay suficientes datos para realizar clustering"}), 400
+
+        df = pd.DataFrame(logs)
+
+        # Preparar features
+        df['hora'] = pd.to_datetime(df['fecha_hora']).dt.hour
+        features = ['ear_value', 'nivel_fatiga', 'hora']
+        X = df[features].fillna(0).values
+
+        # Escalar
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        # PCA para visualización
+        pca = PCA(n_components=2)
+        X_pca = pca.fit_transform(X_scaled)
+
+        # Método del Codo + Silhouette
+        wcss = []
+        silhouette_scores = []
+        k_range = range(2, min(11, len(df)//5 + 2))
+
+        for k in k_range:
+            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+            kmeans.fit(X_scaled)
+            wcss.append(kmeans.inertia_)
+            if len(np.unique(kmeans.labels_)) > 1:
+                sil = silhouette_score(X_scaled, kmeans.labels_)
+                silhouette_scores.append(sil)
+            else:
+                silhouette_scores.append(0)
+
+        best_k = k_range[np.argmax(silhouette_scores)] if silhouette_scores else 3
+
+        # KMeans final
+        kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+        clusters = kmeans.fit_predict(X_scaled)
+        df['cluster'] = clusters
+
+        # Generar gráficos en Base64
+        graphs = {}
+
+        # Elbow
+        plt.figure(figsize=(10, 6))
+        plt.plot(k_range, wcss, 'bo-')
+        plt.title('Método del Codo (WCSS)')
+        plt.xlabel('Número de Clusters (k)')
+        plt.ylabel('WCSS')
+        plt.grid(True)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        graphs['elbow'] = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+
+        # Silhouette
+        plt.figure(figsize=(10, 6))
+        plt.plot(k_range, silhouette_scores, 'go-')
+        plt.title('Índice de Silueta')
+        plt.xlabel('Número de Clusters (k)')
+        plt.ylabel('Silhouette Score')
+        plt.grid(True)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        graphs['silhouette'] = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+
+        # PCA Clusters
+        plt.figure(figsize=(10, 8))
+        scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.8)
+        plt.colorbar(scatter, label='Cluster')
+        plt.title(f'PCA - KMeans (k={best_k})')
+        plt.xlabel('PC1')
+        plt.ylabel('PC2')
+        plt.grid(True)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        graphs['pca_clusters'] = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+
+        cluster_stats = df.groupby('cluster')[['ear_value', 'nivel_fatiga', 'hora']].mean().round(3).to_dict()
+
+        return jsonify({
+            "success": True,
+            "n_muestras": len(df),
+            "best_k": int(best_k),
+            "wcss": [float(x) for x in wcss],
+            "silhouette_scores": [float(x) for x in silhouette_scores],
+            "cluster_distribution": df['cluster'].value_counts().to_dict(),
+            "cluster_stats": cluster_stats,
+            "pca_variance": [float(x) for x in pca.explained_variance_ratio_],
+            "graphs": graphs
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"🚀 ProLife API v3.1 → http://0.0.0.0:{port}")

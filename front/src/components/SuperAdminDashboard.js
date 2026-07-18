@@ -97,6 +97,7 @@ export default function SuperAdminDashboard({ user, onLogout, t }) {
     { id: 'usuarios', label: 'Gestión de Usuarios', icon: <AdminIcon.users /> },
     { id: 'logs', label: 'Logs Globales', icon: <AdminIcon.logs /> },
     { id: 'modelos', label: 'Modelos de IA', icon: <AdminIcon.ai /> },
+    { id: 'unsupervised', label: 'Análisis No Supervisado', icon: <AdminIcon.ai /> },   // 
   ];
 
   useEffect(() => {
@@ -245,6 +246,7 @@ export default function SuperAdminDashboard({ user, onLogout, t }) {
         {tab === 'usuarios' && <AdminUsuarios usuarios={usuarios} loading={loading} cambiarRol={cambiarRol} t={t} />}
         {tab === 'logs' && <AdminLogs logs={logsGlobales} loading={loading} t={t} />}
         {tab === 'modelos' && <AdminModelos t={t} />}
+        {tab === 'unsupervised' && <AdminUnsupervised t={t} />}
       </main>
     </div>
   );
@@ -542,6 +544,156 @@ function AdminModelos({ t }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AdminUnsupervised({ t }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(''); // Para filtrar por usuario
+  const [error, setError] = useState('');
+
+  const cargarAnalisis = async () => {
+    setLoading(true);
+    setError('');
+    let url = `${API}/superadmin/analisis_unsupervised`;
+    
+    // Agregar filtro si se seleccionó un usuario
+    if (selectedUser && selectedUser.trim() !== '') {
+      url += `?id_usuario=${selectedUser}`;
+    }
+
+    try {
+      const res = await axios.get(url);
+      setData(res.data);
+    } catch (e) {
+      console.error(e);
+      setError(e.response?.data?.error || "Error al cargar el análisis no supervisado");
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar al montar y cuando cambie el usuario seleccionado
+  useEffect(() => {
+    cargarAnalisis();
+  }, [selectedUser]);
+
+  if (loading) return <p style={{ color: t.textMuted }}>Cargando análisis de clustering...</p>;
+  
+  return (
+    <div>
+      <SectionTitle 
+        icon={<AdminIcon.ai />} 
+        label="Análisis No Supervisado (K-Means + PCA)" 
+        color="#8b5cf6" 
+        t={t} 
+      />
+
+      {/* Filtro por Usuario */}
+      <div style={{ marginBottom: 24, maxWidth: 400 }}>
+        <label style={{ display: 'block', marginBottom: 8, color: t.textMuted, fontWeight: 600 }}>
+          Filtrar por ID de Usuario (dejar vacío para ver todos)
+        </label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input
+            type="number"
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            placeholder="Ej: 5"
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.05)',
+              border: `1px solid ${t.border}`,
+              color: t.text,
+              fontSize: 14,
+              outline: 'none'
+            }}
+          />
+          <button
+            onClick={cargarAnalisis}
+            style={{
+              padding: '12px 20px',
+              background: t.primary,
+              color: 'white',
+              border: 'none',
+              borderRadius: 10,
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            Actualizar
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ color: '#ef4444', padding: 16, background: 'rgba(239,68,68,0.1)', borderRadius: 12, marginBottom: 20 }}>
+          {error}
+        </div>
+      )}
+
+      {data?.success ? (
+        <>
+          <div style={{ marginBottom: 16, color: t.textMuted }}>
+            <strong>{data.tipo_analisis}</strong> — {data.n_muestras} registros
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: 20 }}>
+            
+            {/* Gráfico del Codo */}
+            <div style={cardStyle(t)}>
+              <h3>Método del Codo (WCSS)</h3>
+              <img 
+                src={`data:image/png;base64,${data.graphs.elbow}`} 
+                alt="Elbow" 
+                style={{ width: '100%', borderRadius: 12 }} 
+              />
+            </div>
+
+            {/* Gráfico de Silueta */}
+            <div style={cardStyle(t)}>
+              <h3>Índice de Silueta</h3>
+              <img 
+                src={`data:image/png;base64,${data.graphs.silhouette}`} 
+                alt="Silhouette" 
+                style={{ width: '100%', borderRadius: 12 }} 
+              />
+            </div>
+
+            {/* PCA Clusters */}
+            <div style={{ ...cardStyle(t), gridColumn: '1 / -1' }}>
+              <h3>Visualización PCA con Clusters (K = {data.best_k})</h3>
+              <img 
+                src={`data:image/png;base64,${data.graphs.pca_clusters}`} 
+                alt="PCA Clusters" 
+                style={{ width: '100%', borderRadius: 12 }} 
+              />
+            </div>
+          </div>
+
+          {/* Estadísticas */}
+          <div style={cardStyle(t)}>
+            <h3>Estadísticas por Cluster</h3>
+            <pre style={{ 
+              background: '#1f2937', 
+              color: '#e5e7eb', 
+              padding: 16, 
+              borderRadius: 12, 
+              overflowX: 'auto',
+              fontSize: 13
+            }}>
+              {JSON.stringify(data.cluster_stats, null, 2)}
+            </pre>
+          </div>
+        </>
+      ) : (
+        !loading && <p style={{ color: t.textMuted }}>No se pudieron cargar los datos.</p>
+      )}
     </div>
   );
 }

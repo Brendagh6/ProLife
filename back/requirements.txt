@@ -1,0 +1,12 @@
+Flask==2.3.3
+Flask-Cors==4.0.0
+pymongo==4.5.0
+bcrypt==4.0.1
+python-dotenv==1.2.1
+requests==2.31.0
+numpy==1.24.3
+opencv-python-headless==4.8.1.78
+mediapipe==0.10.14   # Si quieres mantener detección de fatiga
+groq==1.5.0
+scikit-learn==1.3.0
+pandas==2.0.3
